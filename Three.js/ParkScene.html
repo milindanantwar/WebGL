@@ -1,0 +1,368 @@
+﻿
+
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Park Scene</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel=stylesheet href="css/base.css" />
+</head>
+<body>
+
+    <script src="js/Three.js"></script>
+    <script src="js/OBJLoader.js"></script>
+    <script src="js/Detector.js"></script>
+    <script src="js/Stats.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <script src="js/THREEx.KeyboardState.js"></script>
+    <script src="js/THREEx.FullScreen.js"></script>
+    <script src="js/THREEx.WindowResize.js"></script>
+
+    <!-- jQuery code to display an information button and box when clicked. -->
+    <script src="js/jquery-1.9.1.js"></script>
+    <script src="js/jquery-ui.js"></script>
+    <link rel=stylesheet href="css/jquery-ui.css" />
+    <link rel=stylesheet href="css/info.css" />
+    <script src="js/info.js"></script>
+    <button style="position:absolute;top:20px;z-index:120" onClick="javascript: isAnimateBox = !isAnimateBox;">Animate Cubes</button>
+    <button style="position:absolute;top:60px;z-index:120" onClick="javascript: isAnimateBall = !isAnimateBall;">Animate Ball</button>
+    <button style="position:absolute;top:100px;z-index:120" onClick="javascript: isAnimateCylinder = !isAnimateCylinder;">Animate Cylinder</button>
+    <button style="position:absolute;top:140px;z-index:120" onClick="javascript: isAnimateDog = !isAnimateDog;">Animate Dog</button>
+    <div id="ThreeJS" style="position: absolute; left:0px; top:0px"></div>
+
+    <script>
+
+        // MAIN
+
+        // standard global variables
+        var container, scene, camera, renderer, controls, stats;
+        var keyboard = new THREEx.KeyboardState();
+        var clock = new THREE.Clock();
+
+        // custom global variables
+        var cube;
+        var group;
+        var cgroup;
+        var dgroup;
+        var bcounter = 0;
+        var dcounter = 0;
+
+        var isAnimateBox = false;
+        var isAnimateBall = false;
+        var isAnimateCylinder = false;
+        var isAnimateDog = false;
+
+        init();
+        animate();
+
+        // FUNCTIONS
+        function init() {
+
+            // SCENE
+            scene = new THREE.Scene();
+
+            // CAMERA
+            var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+            var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
+            camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+            scene.add(camera);
+            camera.position.set(0, 250, 800);
+            camera.lookAt(scene.position);
+
+            // RENDERER
+            if (Detector.webgl)
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+            else
+                renderer = new THREE.CanvasRenderer();
+            renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFShadowMap;
+
+            container = document.getElementById('ThreeJS');
+            container.appendChild(renderer.domElement);
+
+            // EVENTS
+            THREEx.WindowResize(renderer, camera);
+            THREEx.FullScreen.bindKey({ charCode: 'm'.charCodeAt(0) });
+
+            // CONTROLS
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+            // STATS FRAME BUFFER
+            stats = new Stats();
+            stats.domElement.style.position = 'absolute';
+            stats.domElement.style.bottom = '0px';
+            stats.domElement.style.zIndex = 100;
+            container.appendChild(stats.domElement);
+
+            // LIGHT
+            var light = new THREE.PointLight(0xffffff, 1);
+            light.position.set(210, 450, 200);
+            scene.add(light);
+
+
+            // Grass
+            var floorTexture = new THREE.ImageUtils.loadTexture('images/grasslight-small.jpg');
+            floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+            floorTexture.repeat.set(10, 10);
+            var floorMaterial = new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.DoubleSide });
+            var floorGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
+            var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.position.y = -0.5;
+            floor.rotation.x = Math.PI / 2;
+            scene.add(floor);
+
+            // Grid Creation
+            var gridHelper = new THREE.GridHelper(500, 20);
+            scene.add(gridHelper);
+
+            // SKYBOX/FOG
+            var skyBoxGeometry = new THREE.CubeGeometry(10000, 10000, 10000);
+            var skyBoxMaterial = new THREE.MeshBasicMaterial({ color: 0x9999ff, side: THREE.BackSide });
+            var skyBox = new THREE.Mesh(skyBoxGeometry, skyBoxMaterial);
+            scene.fog = new THREE.FogExp2(0x9999ff, 0.00025);
+
+            // BALL
+            var sphereGeom = new THREE.SphereGeometry(40, 20, 16);
+            var light2 = new THREE.AmbientLight(0x444444);
+            scene.add(light2);
+            var lavaTexture = THREE.ImageUtils.loadTexture('images/ball.jpg');
+            lavaTexture.wrapS = lavaTexture.wrapT = THREE.RepeatWrapping;
+            lavaTexture.repeat.set(1, 1);
+            var lavaMaterial = new THREE.MeshBasicMaterial({ map: lavaTexture });
+            lavaBall = new THREE.Mesh(sphereGeom.clone(), lavaMaterial);
+            lavaBall.position.set(0, 50, 0);
+            lavaBall.castShadow = true; //default is false
+            lavaBall.receiveShadow = false; //default
+            scene.add(lavaBall);
+
+
+            //GROUP
+            group = new THREE.Group();
+            cgroup = new THREE.Group();
+            dgroup = new THREE.Group();
+
+
+            // CUBES
+            var cubeGeometry = new THREE.CubeGeometry(100, 100, 100);
+            var crateTexture = new THREE.ImageUtils.loadTexture('images/crate.jpg');
+            var crateMaterial = new THREE.MeshBasicMaterial({ map: crateTexture });
+            var crate = new THREE.Mesh(cubeGeometry.clone(), crateMaterial);
+            crate.position.set(-450, 50, -450);
+            scene.add(crate);
+            group.add(crate);
+            var crate = new THREE.Mesh(cubeGeometry.clone(), crateMaterial);
+            crate.position.set(450, 50, -450);
+            scene.add(crate);
+            group.add(crate);
+            var crate = new THREE.Mesh(cubeGeometry.clone(), crateMaterial);
+            crate.position.set(450, 50, 450);
+            scene.add(crate);
+            group.add(crate);
+            var crate = new THREE.Mesh(cubeGeometry.clone(), crateMaterial);
+            crate.position.set(-450, 50, 450);
+            scene.add(crate);
+            group.add(crate);
+            scene.add(group);
+
+            // CYLINDER
+
+            var map = new THREE.TextureLoader().load('images/wall.png');
+            map.wrapS = map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 16;
+            var material = new THREE.MeshPhongMaterial({ map: map, side: THREE.DoubleSide });
+
+            object = new THREE.Mesh(new THREE.CylinderBufferGeometry(25, 75, 100, 40, 5), material);
+            object.position.set(-250, 50, - 250);
+            scene.add(object);
+            cgroup.add(object);
+
+            object = new THREE.Mesh(new THREE.CylinderBufferGeometry(25, 75, 100, 40, 5), material);
+            object.position.set(250, 50, - 250);
+            scene.add(object);
+            cgroup.add(object);
+            object = new THREE.Mesh(new THREE.CylinderBufferGeometry(25, 75, 100, 40, 5), material);
+            object.position.set(-250, 50, 250);
+            scene.add(object);
+            cgroup.add(object);
+            object = new THREE.Mesh(new THREE.CylinderBufferGeometry(25, 75, 100, 40, 5), material);
+            object.position.set(250, 50, 250);
+            scene.add(object);
+            cgroup.add(object);
+
+            scene.add(cgroup);
+
+            //LATHE SHAPE
+
+            var map = new THREE.TextureLoader().load('images/old-silver-texture.jpg');
+            map.wrapS = map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 16;
+
+            var material = new THREE.MeshPhongMaterial({ map: map, side: THREE.DoubleSide });
+
+            var points = [];
+            for (var i = 0; i < 50; i++) {
+                points.push(new THREE.Vector2(Math.sin(i * 0.2) * Math.sin(i * 0.1) * 15 + 50, (i - 5) * 2));
+
+            }
+
+            object = new THREE.Mesh(new THREE.LatheBufferGeometry(points, 10), material);
+            object.position.set(0, 0, - 250);
+
+            object.scale.set(0.5, 0.5, 0.5);
+
+            scene.add(object);
+
+            object = new THREE.Mesh(new THREE.LatheBufferGeometry(points, 10), material);
+            object.position.set(0, 0, 250);
+
+            object.scale.set(0.5, 0.5, 0.5);
+
+
+
+            //object = new THREE.Mesh(new THREE.LatheBufferGeometry(points, 10), material);
+            //object.position.set(0, 0, - 250);
+
+            //object.scale.set(0.5, 0.5, 0.5);
+
+
+            //object = new THREE.Mesh(new THREE.LatheBufferGeometry(points, 10), material);
+            //object.position.set(0, 0, - 250);
+
+            //object.scale.set(0.5, 0.5, 0.5);
+            scene.add(object);
+
+            //LOAD DOG OBJECT
+
+            //instantiate a loader
+            var loader = new THREE.OBJLoader();
+            // load a resource
+            loader.load(
+                // resource URL
+                'images/12228_Dog_v1_L2.obj',
+
+                // called when resource is loaded
+                function (object) {
+                    scene.add(object);
+                    dgroup.add(object);
+                    scene.add(dgroup);
+                    object.position.x = - 50;
+                    object.position.y = 0;
+                    object.position.z = -100;
+                    object.rotation.x = 1.5 * Math.PI;
+                    object.scale.set(2, 2, 2);
+
+                    render();
+                },
+                // called when loading is in progresses
+                function (xhr) {
+
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+
+                },
+                // called when loading has errors
+                function (error) {
+
+                    console.log('An error happened');
+
+                }
+            )
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            render();
+            update();
+        }
+
+        //UPDATE FUNCTION
+        function update() {
+            delta = clock.getDelta();
+            var moveDistance = 50 * delta;
+            var moveDistance1 = 50 * delta;
+
+            // move forwards / backwards
+            if (keyboard.pressed("down"))
+                dgroup.translateZ(-moveDistance);
+
+
+            if (keyboard.pressed("up"))
+                dgroup.translateZ(moveDistance);
+
+
+            // rotate left/right
+            if (keyboard.pressed("left"))
+                dgroup.translateX(-moveDistance1);
+
+            if (keyboard.pressed("right"))
+                dgroup.translateX(moveDistance1);
+
+            controls.update();
+            stats.update();
+        }
+
+        //RENDER FUNCTION
+        function render() {
+            requestAnimationFrame(render);
+
+            //Animate Box
+            if (isAnimateBox) {
+                //group.rotation.y += 0.001;
+                group.children.forEach(function (obj) { obj.rotation.x += 0.02 })
+                group.children.forEach(function (obj) { obj.rotation.y += 0.0225 })
+                group.children.forEach(function (obj) { obj.rotation.x += 0.0175 })
+            }
+
+            //Animate Cylinder
+            if (isAnimateCylinder) {
+                cgroup.children.forEach(function (obj) { obj.rotation.y += 0.01 })
+            }
+
+            //Animate Ball
+            if (isAnimateBall) {
+                if (bcounter <= 100) {
+                    lavaBall.position.y += 0.8;
+                    bcounter++;
+                }
+                else if (bcounter > 100) {
+                    lavaBall.position.y -= 0.8;
+                    bcounter++;
+                }
+
+                if (bcounter > 200) {
+                    bcounter = 0;
+
+                }
+
+            }
+
+            //Animate Dog
+            if (isAnimateDog) {
+
+                if (dcounter <= 100) {
+                    dgroup.rotation.z += 0.1;
+                    dcounter++;
+                }
+
+                else if (dcounter > 100) {
+                    dgroup.rotation.z -= 0.1;
+                    dcounter++;
+                }
+
+                if (dcounter > 200) {
+                    dcounter = 0;
+
+                }
+            }
+
+            renderer.render(scene, camera);
+
+            //SET CANVAS BACKGROUND COLOR
+            renderer.setClearColor(0xccccff, 1);
+        }
+
+    </script>
+
+</body>
+</html>
